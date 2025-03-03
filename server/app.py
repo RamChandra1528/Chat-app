@@ -86,11 +86,78 @@ def get_private_room_name(user1, user2):
     # Sort usernames to ensure consistent room name (e.g., "alice_bob" or "bob_alice" becomes "alice_bob")
     return '_'.join(sorted([user1, user2]))
 
+# Graph Utility Functions (New Features)
+def are_connected(username1, username2):
+    """Check if two users are connected (directly or indirectly) using BFS."""
+    if username1 not in friends or username2 not in friends:
+        return False
+    if username2 in friends[username1]:
+        return True  # Direct friends
+    
+    visited = set()
+    queue = deque([username1])
+    while queue:
+        current = queue.popleft()
+        if current in visited:
+            continue
+        visited.add(current)
+        for neighbor in friends.get(current, []):
+            if neighbor == username2:
+                return True  # Indirect connection found
+            if neighbor not in visited:
+                queue.append(neighbor)
+    return False
+
+def shortest_path(username1, username2):
+    """Find the shortest path between two users using BFS."""
+    if username1 not in friends or username2 not in friends:
+        return []
+    if username1 == username2:
+        return [username1]
+    
+    visited = set()
+    parent = {}
+    queue = deque([username1])
+    visited.add(username1)
+    
+    while queue:
+        current = queue.popleft()
+        for neighbor in friends.get(current, []):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                parent[neighbor] = current
+                queue.append(neighbor)
+                if neighbor == username2:
+                    # Reconstruct path
+                    path = []
+                    while neighbor in parent:
+                        path.append(neighbor)
+                        neighbor = parent[neighbor]
+                    path.append(username1)
+                    return path[::-1]  # Reverse to get start -> end
+    return []  # No path exists
+
+def suggest_friends(username):
+    """Suggest friends (friends-of-friends not already friends)."""
+    if username not in friends:
+        return []
+    
+    suggestions = set()
+    current_friends = set(friends[username])
+    
+    # Get friends-of-friends
+    for friend in current_friends:
+        for fof in friends.get(friend, []):
+            if fof != username and fof not in current_friends:
+                suggestions.add(fof)
+    
+    return list(suggestions)
+
 @app.route("/")
 def Home():
-    return "Successfully worked Backend"
+    return "Successfully work Backend"
 
-# Routes (unchanged except where noted)
+# Routes
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.json
@@ -108,7 +175,7 @@ def register():
         "bio": "",
         "avatar": ""
     }
-    friends[username] = []
+    friends[username] = []  # Initialize graph node
     notifications[username] = deque()
     user_trie.insert(username)
     save_users()
@@ -249,6 +316,46 @@ def manage_notifications():
 @app.route('/api/rooms', methods=['GET'])
 def get_rooms():
     return jsonify({"success": True, "rooms": DEFAULT_ROOMS}), 200
+
+# New Graph-Related Routes
+@app.route('/api/friends/connected', methods=['GET'])
+def check_connected():
+    username = session.get('username')
+    if not username:
+        return jsonify({"success": False, "message": "Not logged in"}), 401
+    
+    target = request.args.get('target')
+    if not target or target not in users:
+        return jsonify({"success": False, "message": "Target user not found"}), 404
+    
+    connected = are_connected(username, target)
+    return jsonify({"success": True, "connected": connected}), 200
+
+@app.route('/api/friends/path', methods=['GET'])
+def get_shortest_path():
+    username = session.get('username')
+    if not username:
+        return jsonify({"success": False, "message": "Not logged in"}), 401
+    
+    target = request.args.get('target')
+    if not target or target not in users:
+        return jsonify({"success": False, "message": "Target user not found"}), 404
+    
+    path = shortest_path(username, target)
+    return jsonify({"success": True, "path": path}), 200
+
+@app.route('/api/friends/suggestions', methods=['GET'])
+def get_friend_suggestions():
+    username = session.get('username')
+    if not username:
+        return jsonify({"success": False, "message": "Not logged in"}), 401
+    
+    suggestions = suggest_friends(username)
+    suggestion_data = [
+        {"username": user, "bio": users[user].get("bio", ""), "avatar": users[user].get("avatar", "")}
+        for user in suggestions
+    ]
+    return jsonify({"success": True, "suggestions": suggestion_data}), 200
 
 # Socket events
 @socketio.on('connect')

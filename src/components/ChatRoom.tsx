@@ -13,7 +13,6 @@ type ChatRoomProps = {
   selectedFriend: string | null;
 };
 
-// Configuration for message limit
 const MAX_MESSAGES = 100;
 
 const ChatRoom: React.FC<ChatRoomProps> = ({ username, selectedFriend }) => {
@@ -23,12 +22,14 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ username, selectedFriend }) => {
   const [currentRoom, setCurrentRoom] = useState<string>('');
   const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
   const [isTyping, setIsTyping] = useState(false);
+  const [friendSuggestions, setFriendSuggestions] = useState<{ username: string; bio: string; avatar: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [directChatMode, setDirectChatMode] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Fetch rooms
     fetch('http://localhost:5000/api/rooms', { credentials: 'include' })
       .then(response => {
         if (!response.ok) throw new Error('Failed to fetch rooms');
@@ -45,20 +46,24 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ username, selectedFriend }) => {
       })
       .catch(error => console.error('Error fetching rooms:', error));
 
+    // Fetch friend suggestions when not in direct chat
+    if (!selectedFriend) {
+      fetch('http://localhost:5000/api/friends/suggestions', { credentials: 'include' })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) setFriendSuggestions(data.suggestions);
+        })
+        .catch(error => console.error('Error fetching friend suggestions:', error));
+    }
+
     const socketInstance = connectSocket();
     socketInstance.on('message_history', (data: { messages: Message[] }) => {
-      setMessages(prev => {
-        const allMessages = [...prev, ...data.messages].slice(-MAX_MESSAGES);
-        return allMessages;
-      });
+      setMessages(prev => [...prev, ...data.messages].slice(-MAX_MESSAGES));
       scrollToBottom();
     });
     socketInstance.on('new_message', (data: Message) => {
-      setMessages(prev => {
-        const allMessages = [...prev, data].slice(-MAX_MESSAGES);
-        scrollToBottom();
-        return allMessages;
-      });
+      setMessages(prev => [...prev, data].slice(-MAX_MESSAGES));
+      scrollToBottom();
     });
     socketInstance.on('typing_update', (data: { username: string; typing: boolean }) => {
       if (data.username !== username) {
@@ -71,7 +76,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ username, selectedFriend }) => {
       socketInstance.off('new_message');
       socketInstance.off('typing_update');
     };
-  }, [username]);
+  }, [username, selectedFriend]);
 
   useEffect(() => {
     const socketInstance = getSocket();
@@ -90,17 +95,12 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ username, selectedFriend }) => {
     }
 
     return () => {
-      if (selectedFriend) {
-        socketInstance.emit('leave', { friend: selectedFriend });
-      } else if (currentRoom) {
-        socketInstance.emit('leave', { room: currentRoom });
-      }
+      if (selectedFriend) socketInstance.emit('leave', { friend: selectedFriend });
+      else if (currentRoom) socketInstance.emit('leave', { room: currentRoom });
     };
   }, [selectedFriend, currentRoom, rooms, username, directChatMode]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  useEffect(() => scrollToBottom(), [messages]);
 
   const scrollToBottom = () => {
     if (messagesEndRef.current && messagesContainerRef.current) {
@@ -120,9 +120,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ username, selectedFriend }) => {
     }
     setMessage('');
     setIsTyping(false);
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     socketInstance.emit('typing', {
       room: directChatMode ? undefined : currentRoom,
       friend: directChatMode ? selectedFriend : undefined,
@@ -145,10 +143,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ username, selectedFriend }) => {
       });
     }
 
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       if (isTyping) {
         setIsTyping(false);
@@ -179,9 +174,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ username, selectedFriend }) => {
   };
 
   const getChatTitle = () => {
-    if (directChatMode && selectedFriend) {
-      return `Chat with ${selectedFriend}`;
-    }
+    if (directChatMode && selectedFriend) return `Chat with ${selectedFriend}`;
     return currentRoom || 'Chat Rooms';
   };
 
@@ -211,6 +204,23 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ username, selectedFriend }) => {
               {room}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Friend Suggestions (only in public room mode) */}
+      {!directChatMode && friendSuggestions.length > 0 && (
+        <div className="p-4 bg-gray-100 border-b border-gray-200">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Friend Suggestions</h3>
+          <div className="flex flex-wrap gap-2">
+            {friendSuggestions.map(suggestion => (
+              <div
+                key={suggestion.username}
+                className="px-3 py-1 bg-white rounded-full text-sm text-gray-800 shadow-sm"
+              >
+                {suggestion.username}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

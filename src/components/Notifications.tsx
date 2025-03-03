@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Trash2 } from 'lucide-react';
-import { connectSocket } from '../socket';
+import { connectSocket, getSocket } from '../socket';
 
 type NotificationsProps = {
   username: string;
@@ -9,12 +9,11 @@ type NotificationsProps = {
 const Notifications: React.FC<NotificationsProps> = ({ username }) => {
   const [notifications, setNotifications] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch initial notifications
     fetchNotifications();
 
-    // Set up real-time notification updates via SocketIO
     const socketInstance = connectSocket();
     socketInstance.on('new_notification', (data: { message: string }) => {
       setNotifications(prev => [...prev, data.message]);
@@ -27,9 +26,8 @@ const Notifications: React.FC<NotificationsProps> = ({ username }) => {
 
   const fetchNotifications = () => {
     setIsLoading(true);
-    fetch('http://localhost:5000/api/notifications', {
-      credentials: 'include',
-    })
+    setError(null);
+    fetch('http://localhost:5000/api/notifications', { credentials: 'include' })
       .then(response => {
         if (!response.ok) throw new Error('Failed to fetch notifications');
         return response.json();
@@ -38,16 +36,19 @@ const Notifications: React.FC<NotificationsProps> = ({ username }) => {
         if (data.success) {
           setNotifications(data.notifications);
         } else {
-          console.error('Failed to load notifications:', data.message);
+          setError(data.message || 'Failed to load notifications');
         }
       })
       .catch(error => {
         console.error('Error fetching notifications:', error);
+        setError('Network error. Please try again.');
       })
       .finally(() => setIsLoading(false));
   };
 
   const clearNotifications = () => {
+    setIsLoading(true);
+    setError(null);
     fetch('http://localhost:5000/api/notifications', {
       method: 'DELETE',
       credentials: 'include',
@@ -60,12 +61,14 @@ const Notifications: React.FC<NotificationsProps> = ({ username }) => {
         if (data.success) {
           setNotifications([]);
         } else {
-          console.error('Failed to clear notifications:', data.message);
+          setError(data.message || 'Failed to clear notifications');
         }
       })
       .catch(error => {
         console.error('Error clearing notifications:', error);
-      });
+        setError('Network error. Please try again.');
+      })
+      .finally(() => setIsLoading(false));
   };
 
   return (
@@ -77,13 +80,19 @@ const Notifications: React.FC<NotificationsProps> = ({ username }) => {
         {notifications.length > 0 && (
           <button
             onClick={clearNotifications}
-            className="flex items-center text-red-500 hover:text-red-700 p-2 rounded hover:bg-gray-100 transition-colors"
+            className="flex items-center text-red-500 hover:text-red-700 p-2 rounded hover:bg-gray-100 transition-colors disabled:text-gray-400 disabled:cursor-not-allowed"
             disabled={isLoading}
           >
             <Trash2 size={18} className="mr-1" /> Clear All
           </button>
         )}
       </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
 
       <div className="flex-grow overflow-y-auto">
         {isLoading && notifications.length === 0 ? (
@@ -100,7 +109,7 @@ const Notifications: React.FC<NotificationsProps> = ({ username }) => {
             {notifications.map((notification, index) => (
               <li
                 key={index}
-                className="p-3 bg-gray-50 rounded-lg border-l-4 border-blue-500"
+                className="p-3 bg-gray-50 rounded-lg border-l-4 border-blue-500 text-gray-800"
               >
                 {notification}
               </li>

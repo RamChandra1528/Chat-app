@@ -24,32 +24,44 @@ const FriendsList: React.FC<FriendsListProps> = ({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<Friend[]>([]);
+  const [targetUser, setTargetUser] = useState('');
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const [path, setPath] = useState<string[]>([]);
 
   useEffect(() => {
     fetchFriends();
-  }, [username]); // Add username as dependency to refetch if it changes
+    fetchSuggestions();
+  }, [username]);
 
   const fetchFriends = () => {
     setIsLoading(true);
-    fetch('http://localhost:5000/api/friends', {
-      credentials: 'include',
-    })
+    fetch('http://localhost:5000/api/friends', { credentials: 'include' })
       .then(response => {
         if (!response.ok) throw new Error('Failed to fetch friends');
         return response.json();
       })
       .then(data => {
-        if (data.success) {
-          setFriends(data.friends);
-        } else {
-          setError(data.message || 'Failed to load friends');
-        }
+        if (data.success) setFriends(data.friends);
+        else setError(data.message || 'Failed to load friends');
       })
       .catch(error => {
         console.error('Error fetching friends:', error);
         setError('Network error. Please try again.');
       })
       .finally(() => setIsLoading(false));
+  };
+
+  const fetchSuggestions = () => {
+    fetch('http://localhost:5000/api/friends/suggestions', { credentials: 'include' })
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch suggestions');
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) setSuggestions(data.suggestions);
+      })
+      .catch(error => console.error('Error fetching suggestions:', error));
   };
 
   const handleAddFriend = (e: React.FormEvent) => {
@@ -75,9 +87,7 @@ const FriendsList: React.FC<FriendsListProps> = ({
     setIsLoading(true);
     fetch('http://localhost:5000/api/friends', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: newFriend }),
       credentials: 'include',
     })
@@ -90,6 +100,35 @@ const FriendsList: React.FC<FriendsListProps> = ({
           setSuccess(`${newFriend} added as a friend`);
           setNewFriend('');
           fetchFriends();
+          fetchSuggestions(); // Refresh suggestions
+        } else {
+          setError(data.message || 'Failed to add friend');
+        }
+      })
+      .catch(error => {
+        console.error('Error adding friend:', error);
+        setError('Network error. Please try again.');
+      })
+      .finally(() => setIsLoading(false));
+  };
+
+  const handleAddSuggestedFriend = (friendUsername: string) => {
+    setIsLoading(true);
+    fetch('http://localhost:5000/api/friends', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: friendUsername }),
+      credentials: 'include',
+    })
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to add friend');
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          setSuccess(`${friendUsername} added as a friend`);
+          fetchFriends();
+          fetchSuggestions();
         } else {
           setError(data.message || 'Failed to add friend');
         }
@@ -106,39 +145,67 @@ const FriendsList: React.FC<FriendsListProps> = ({
       setIsLoading(true);
       fetch('http://localhost:5000/api/friends', {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: friendUsername }),
         credentials: 'include',
       })
-      .then(response => {
-        if (!response.ok) throw new Error('Failed to remove friend');
-        return response.json();
-      })
-      .then(data => {
-        if (data.success) {
-          setFriends(friends.filter(friend => friend.username !== friendUsername));
-          setSuccess(`${friendUsername} removed from friends`);
-          if (onFriendSelect && friendUsername === newFriend) {
-            onFriendSelect(''); // Clear selection if removed friend was selected
+        .then(response => {
+          if (!response.ok) throw new Error('Failed to remove friend');
+          return response.json();
+        })
+        .then(data => {
+          if (data.success) {
+            setFriends(friends.filter(friend => friend.username !== friendUsername));
+            setSuccess(`${friendUsername} removed from friends`);
+            fetchSuggestions(); // Refresh suggestions
+            if (onFriendSelect && friendUsername === newFriend) {
+              onFriendSelect('');
+            }
+          } else {
+            setError(data.message || 'Failed to remove friend');
           }
-        } else {
-          setError(data.message || 'Failed to remove friend');
-        }
-      })
-      .catch(error => {
-        console.error('Error removing friend:', error);
-        setError('Network error. Please try again.');
-      })
-      .finally(() => setIsLoading(false));
+        })
+        .catch(error => {
+          console.error('Error removing friend:', error);
+          setError('Network error. Please try again.');
+        })
+        .finally(() => setIsLoading(false));
     }
   };
 
   const handleFriendClick = (friendUsername: string) => {
-    if (onFriendSelect) {
-      onFriendSelect(friendUsername);
+    if (onFriendSelect) onFriendSelect(friendUsername);
+  };
+
+  const handleCheckConnection = () => {
+    if (!targetUser.trim()) {
+      setError('Please enter a username to check');
+      return;
     }
+    setIsConnected(null);
+    setPath([]);
+    fetch(`http://localhost:5000/api/friends/connected?target=${targetUser}`, { credentials: 'include' })
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to check connection');
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) setIsConnected(data.connected);
+      })
+      .catch(error => {
+        console.error('Error checking connection:', error);
+        setError('Network error. Please try again.');
+      });
+
+    fetch(`http://localhost:5000/api/friends/path?target=${targetUser}`, { credentials: 'include' })
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch path');
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) setPath(data.path);
+      })
+      .catch(error => console.error('Error fetching path:', error));
   };
 
   // Sidebar mode rendering
@@ -220,6 +287,65 @@ const FriendsList: React.FC<FriendsListProps> = ({
         </button>
       </form>
 
+      {/* Friend Suggestions */}
+      {suggestions.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Suggested Friends</h3>
+          <ul className="space-y-2">
+            {suggestions.map(suggestion => (
+              <li
+                key={suggestion.username}
+                className="p-3 bg-gray-50 rounded-lg flex items-center justify-between"
+              >
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 font-bold">
+                    {suggestion.username.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="ml-3 font-medium">{suggestion.username}</div>
+                </div>
+                <button
+                  onClick={() => handleAddSuggestedFriend(suggestion.username)}
+                  className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-blue-300"
+                  disabled={isLoading}
+                >
+                  Add
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Check Connection */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold mb-2">Check Connection</h3>
+        <div className="flex">
+          <input
+            type="text"
+            value={targetUser}
+            onChange={(e) => setTargetUser(e.target.value)}
+            placeholder="Enter username to check"
+            className="flex-grow p-2 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+          <button
+            onClick={handleCheckConnection}
+            className="bg-blue-500 text-white p-2 rounded-r-lg hover:bg-blue-600 disabled:bg-blue-300"
+            disabled={isLoading || !targetUser.trim()}
+          >
+            Check
+          </button>
+        </div>
+        {isConnected !== null && (
+          <p className="mt-2 text-sm">
+            {isConnected ? 'Connected' : 'Not connected'} to {targetUser}
+          </p>
+        )}
+        {path.length > 0 && (
+          <p className="mt-2 text-sm">Connection Path: {path.join(' -> ')}</p>
+        )}
+      </div>
+
+      {/* Friends List */}
       <div className="flex-grow overflow-y-auto">
         {isLoading && friends.length === 0 ? (
           <div className="text-center text-gray-500 py-4">Loading friends...</div>

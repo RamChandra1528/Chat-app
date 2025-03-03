@@ -6,7 +6,7 @@ import ChatRoom from './components/ChatRoom';
 import FriendsList from './components/FriendsList';
 import Profile from './components/Profile';
 import Notifications from './components/Notifications';
-import { socket, connectSocket, disconnectSocket } from './socket';
+import { connectSocket, disconnectSocket } from './socket';
 
 type User = {
   username: string;
@@ -30,6 +30,18 @@ function App() {
         setUser(parsedUser);
         setIsAuthenticated(true);
         connectSocket();
+        // Verify session with backend
+        fetch('http://localhost:5000/api/profile', { credentials: 'include' })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              setUser(data.user);
+              localStorage.setItem('user', JSON.stringify(data.user));
+            } else {
+              handleLogout(); // Clear invalid session
+            }
+          })
+          .catch(() => handleLogout());
       } catch (error) {
         console.error('Failed to parse stored user:', error);
         localStorage.removeItem('user');
@@ -40,10 +52,16 @@ function App() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      fetch('http://localhost:5000/api/notifications')
+      fetch('http://localhost:5000/api/notifications', { credentials: 'include' })
         .then(response => response.json())
         .then(data => data.success && setNotifications(data.notifications))
         .catch(error => console.error('Error fetching notifications:', error));
+
+      const socketInstance = connectSocket();
+      socketInstance.on('new_notification', (data: { message: string }) => {
+        setNotifications(prev => [...prev, data.message]);
+      });
+      return () => socketInstance.off('new_notification');
     }
   }, [isAuthenticated, user]);
 
@@ -56,13 +74,26 @@ function App() {
 
   const handleLogout = () => {
     fetch('http://localhost:5000/api/logout', { method: 'POST', credentials: 'include' })
-      .then(() => {
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          setUser(null);
+          setIsAuthenticated(false);
+          setNotifications([]);
+          setSelectedFriend(null);
+          setActiveTab('chat');
+          localStorage.removeItem('user');
+          disconnectSocket();
+        }
+      })
+      .catch(error => {
+        console.error('Error during logout:', error);
+        // Force logout even if server fails
         setUser(null);
         setIsAuthenticated(false);
         localStorage.removeItem('user');
         disconnectSocket();
-      })
-      .catch(error => console.error('Error during logout:', error));
+      });
   };
 
   const handleRegister = () => setShowLogin(true);
@@ -81,7 +112,7 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-300 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-300 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md transform transition-all hover:scale-105 duration-300">
           {showLogin ? (
             <>
@@ -125,7 +156,9 @@ function App() {
           </h1>
           {user && (
             <div className="flex items-center space-x-4">
-              <span className="font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full">{user.username}</span>
+              <span className="font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
+                {user.username}
+              </span>
               <button
                 onClick={handleLogout}
                 className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors duration-200"
@@ -226,9 +259,7 @@ function App() {
             {activeTab === 'search' && (
               <div className="text-gray-500 text-center py-10">Search Component (Coming Soon)</div>
             )}
-            {activeTab === 'notifications' && (
-              <Notifications notifications={notifications} clearNotifications={clearNotifications} />
-            )}
+            {activeTab === 'notifications' && <Notifications username={user?.username || ''} />}
           </div>
         </div>
       </main>
