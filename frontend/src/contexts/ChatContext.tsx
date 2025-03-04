@@ -58,7 +58,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Initialize socket connection
   useEffect(() => {
     if (user) {
-      const newSocket = io('http://localhost:5000', {
+      const newSocket = io('https://chat-app-backend-theta-henna.vercel.app', {
         query: { userId: user.id }
       });
       
@@ -124,7 +124,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoadingFriends(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/friends', {
+      const response = await axios.get('https://chat-app-backend-theta-henna.vercel.app/api/friends', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setFriends(response.data);
@@ -140,7 +140,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/friends/requests', {
+      const response = await axios.get('https://chat-app-backend-theta-henna.vercel.app/api/friends/requests', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setFriendRequests(response.data);
@@ -155,7 +155,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoadingMessages(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/messages/${friendId}`, {
+      const response = await axios.get(`https://chat-app-backend-theta-henna.vercel.app/api/messages/${friendId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -175,7 +175,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post('http://localhost:5000/api/messages', {
+      const response = await axios.post('https://chat-app-backend-theta-henna.vercel.app/api/messages', {
         receiverId: currentChat.id,
         content
       }, {
@@ -203,7 +203,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/messages/${messageId}`, {
+      await axios.delete(`https://chat-app-backend-theta-henna.vercel.app/api/messages/${messageId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -223,7 +223,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/friends/request', {
+      await axios.post('https://chat-app-backend-theta-henna.vercel.app/api/friends/request', {
         receiverId: userId
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -253,7 +253,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`http://localhost:5000/api/friends/accept/${userId}`, {}, {
+      const response = await axios.post(`https://chat-app-backend-theta-henna.vercel.app/api/friends/accept/${userId}`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -271,7 +271,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`http://localhost:5000/api/friends/reject/${userId}`, {}, {
+      await axios.post(`https://chat-app-backend-theta-henna.vercel.app/api/friends/reject/${userId}`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -288,7 +288,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/friends/${userId}`, {
+      await axios.delete(`https://chat-app-backend-theta-henna.vercel.app/api/friends/${userId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -310,7 +310,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/users/search?q=${query}`, {
+      const response = await axios.get(`https://chat-app-backend-theta-henna.vercel.app/api/users/search?q=${query}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       return response.data;
