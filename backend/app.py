@@ -148,8 +148,8 @@ def token_required(f):
     return decorated
 
 @app.route('/')
-def Home():
-    return "Backend working "
+def index():
+    return "Backend is running!"
 # Routes
 @app.route('/api/auth/register', methods=['POST'])
 def register():
