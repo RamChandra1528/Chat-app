@@ -1,8 +1,6 @@
 {
-    "version": 2,
-    "routes": [
-      { "src": "/api/(.*)", "dest": "https://your-backend.vercel.app/$1" },
-      { "src": "/(.*)", "dest": "/index.html" }
-    ]
-  }
-  
+  "version": 2,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}
