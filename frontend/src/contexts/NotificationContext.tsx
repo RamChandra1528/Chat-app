@@ -51,7 +51,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('https://chat-app-backend-theta-henna.vercel.app/api/notifications', {
+      const response = await axios.get('http://localhost:5000/api/notifications', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(response.data);
@@ -67,7 +67,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`https://chat-app-backend-theta-henna.vercel.app/api/notifications/${notificationId}/read`, {}, {
+      await axios.put(`http://localhost:5000/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -89,7 +89,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       const token = localStorage.getItem('token');
-      await axios.put('https://chat-app-backend-theta-henna.vercel.app/api/notifications/read-all', {}, {
+      await axios.put('http://localhost:5000/api/notifications/read-all', {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -107,7 +107,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`https://chat-app-backend-theta-henna.vercel.app/api/notifications/${notificationId}`, {
+      await axios.delete(`http://localhost:5000/api/notifications/${notificationId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -125,7 +125,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       const token = localStorage.getItem('token');
-      await axios.delete('https://chat-app-backend-theta-henna.vercel.app/api/notifications/clear-all', {
+      await axios.delete('http://localhost:5000/api/notifications/clear-all', {
         headers: { Authorization: `Bearer ${token}` }
       });
       

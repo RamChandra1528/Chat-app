@@ -119,12 +119,8 @@ online_users = {}
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
-# Allow CORS only for your frontend
-CORS(app, resources={r"/*": {"origins": "https://chat-app-taupe-rho-26.vercel.app"}})
-
-# Restrict WebSocket connections to your frontend's origin
-socketio = SocketIO(app, cors_allowed_origins=["https://chat-app-taupe-rho-26.vercel.app"])
-
+CORS(app, resources={r"/*": {"origins": "*"}})
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 
 def token_required(f):

@@ -38,7 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const token = localStorage.getItem('token');
         if (token) {
           // In a real app, you would verify the token with your backend
-          const response = await axios.get('https://chat-app-backend-theta-henna.vercel.app/api/auth/me', {
+          const response = await axios.get('http://localhost:5000/api/auth/me', {
             headers: { Authorization: `Bearer ${token}` }
           });
           setUser(response.data);
@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     try {
       // In a real app, this would be an API call to your backend
-      const response = await axios.post('https://chat-app-backend-theta-henna.vercel.app/api/auth/login', {
+      const response = await axios.post('http://localhost:5000/api/auth/login', {
         email,
         password
       });
@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (username: string, email: string, password: string) => {
     try {
       // In a real app, this would be an API call to your backend
-      const response = await axios.post('https://chat-app-backend-theta-henna.vercel.app/api/auth/register', {
+      const response = await axios.post('http://localhost:5000/api/auth/register', {
         username,
         email,
         password
@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = async (data: Partial<User>) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.put('https://chat-app-backend-theta-henna.vercel.app/api/users/profile', data, {
+      const response = await axios.put('http://localhost:5000/api/users/profile', data, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(response.data);
