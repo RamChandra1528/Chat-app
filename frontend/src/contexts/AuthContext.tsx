@@ -19,6 +19,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Correct API base URL for Vite
+const API_BASE_URL = import.meta.env.REACT_APP_API_URL || 'http://10.82.6.52:5000';
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -31,19 +34,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Axios instance
+  const axiosInstance = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 10000,
+    withCredentials: true,
+  });
+
   useEffect(() => {
-    // Check if user is logged in
     const checkAuth = async () => {
       try {
         const token = localStorage.getItem('token');
-        if (token) {
-          // In a real app, you would verify the token with your backend
-          const response = await axios.get('http://localhost:5000/api/auth/me', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setUser(response.data);
+        if (!token) {
+          throw new Error('No token found');
         }
+
+        const response = await axiosInstance.get('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUser(response.data);
       } catch (error) {
+        console.error('Auth check failed:', error);
         localStorage.removeItem('token');
         setUser(null);
       } finally {
@@ -56,8 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      // In a real app, this would be an API call to your backend
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
+      const response = await axiosInstance.post('/api/auth/login', {
         email,
         password
       });
@@ -66,14 +76,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('token', token);
       setUser(user);
     } catch (error) {
-      throw new Error('Login failed');
+      throw new Error(error.response?.data?.message || 'Login failed');
     }
   };
 
   const register = async (username: string, email: string, password: string) => {
     try {
-      // In a real app, this would be an API call to your backend
-      const response = await axios.post('http://localhost:5000/api/auth/register', {
+      const response = await axiosInstance.post('/api/auth/register', {
         username,
         email,
         password
@@ -83,24 +92,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('token', token);
       setUser(user);
     } catch (error) {
-      throw new Error('Registration failed');
+      throw new Error(error.response?.data?.message || 'Registration failed');
     }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
+    delete axiosInstance.defaults.headers.common['Authorization'];
   };
 
   const updateProfile = async (data: Partial<User>) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.put('http://localhost:5000/api/users/profile', data, {
-        headers: { Authorization: `Bearer ${token}` }
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axiosInstance.put('/api/users/profile', data, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+        }
       });
       setUser(response.data);
     } catch (error) {
-      throw new Error('Profile update failed');
+      throw new Error(error.response?.data?.message || 'Profile update failed');
     }
   };
 

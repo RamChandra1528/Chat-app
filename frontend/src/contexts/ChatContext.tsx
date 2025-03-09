@@ -37,6 +37,9 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
+const API_BASE_URL = import.meta.env.REACT_APP_API_URL || 'https://api.yourdomain.com';
+const SOCKET_URL = import.meta.env.REACT_APP_SOCKET_URL || 'https://socket.yourdomain.com';
+
 export const useChat = () => {
   const context = useContext(ChatContext);
   if (!context) {
@@ -55,22 +58,34 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
-  // Initialize socket connection
+  const axiosInstance = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 10000,
+    withCredentials: true,
+  });
+
   useEffect(() => {
     if (user) {
-      const newSocket = io('http://localhost:5000', {
-        query: { userId: user.id }
+      const token = localStorage.getItem('token');
+      const newSocket = io(SOCKET_URL, {
+        query: { userId: user.id },
+        auth: { token },
+        transports: ['websocket'], // Force WebSocket transport
+        reconnectionAttempts: 5,
       });
-      
+
+      newSocket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+      });
+
       setSocket(newSocket);
-      
+
       return () => {
         newSocket.disconnect();
       };
     }
   }, [user]);
 
-  // Listen for socket events
   useEffect(() => {
     if (!socket) return;
 
@@ -103,7 +118,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [socket, user]);
 
-  // Load friends and friend requests
   useEffect(() => {
     if (user) {
       loadFriends();
@@ -111,7 +125,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  // Load messages when current chat changes
   useEffect(() => {
     if (currentChat) {
       loadMessages(currentChat.id);
@@ -124,7 +137,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoadingFriends(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/friends', {
+      const response = await axiosInstance.get('/api/friends', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setFriends(response.data);
@@ -140,7 +153,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/friends/requests', {
+      const response = await axiosInstance.get('/api/friends/requests', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setFriendRequests(response.data);
@@ -155,10 +168,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoadingMessages(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/messages/${friendId}`, {
+      const response = await axiosInstance.get(`/api/messages/${friendId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
       setMessages(prev => ({
         ...prev,
         [friendId]: response.data
@@ -175,26 +187,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post('http://localhost:5000/api/messages', {
+      const response = await axiosInstance.post('/api/messages', {
         receiverId: currentChat.id,
         content
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       
       const newMessage = response.data;
-      
-      // Update local state
       setMessages(prev => ({
         ...prev,
         [currentChat.id]: [...(prev[currentChat.id] || []), newMessage]
       }));
-      
-      // Send through socket
       socket.emit('send_message', newMessage);
     } catch (error) {
       console.error('Failed to send message:', error);
-      throw new Error('Failed to send message');
+      throw new Error(error.response?.data?.message || 'Failed to send message');
     }
   };
 
@@ -203,48 +214,37 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/messages/${messageId}`, {
+      await axiosInstance.delete(`/api/messages/${messageId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      // Update local state
       setMessages(prev => ({
         ...prev,
         [currentChat.id]: prev[currentChat.id].filter(msg => msg.id !== messageId)
       }));
     } catch (error) {
       console.error('Failed to delete message:', error);
-      throw new Error('Failed to delete message');
+      throw new Error(error.response?.data?.message || 'Failed to delete message');
     }
   };
 
   const sendFriendRequest = async (userId: string): Promise<{ success: boolean; message: string }> => {
-    if (!user) return { success: false, message: 'You must be logged in to send friend requests' };
+    if (!user) return { success: false, message: 'Authentication required' };
     
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/friends/request', {
+      await axiosInstance.post('/api/friends/request', {
         receiverId: userId
       }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      return { success: true, message: 'Friend request sent successfully!' };
-    } catch (error: any) {
-      console.error('Failed to send friend request:', error);
-      
-      // Handle specific error cases
-      if (error.response) {
-        if (error.response.status === 409) {
-          // 409 Conflict - Already friends or request already sent
-          return { 
-            success: false, 
-            message: error.response.data.message || 'You are already friends or have already sent a request to this user'
-          };
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      }
-      
-      return { success: false, message: 'Failed to send friend request. Please try again later.' };
+      });
+      return { success: true, message: 'Friend request sent successfully!' };
+    } catch (error) {
+      console.error('Failed to send friend request:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to send friend request';
+      return { success: false, message: errorMessage };
     }
   };
 
@@ -253,16 +253,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`http://localhost:5000/api/friends/accept/${userId}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await axiosInstance.post(`/api/friends/accept/${userId}`, {}, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
-      
-      // Update local state
       setFriendRequests(prev => prev.filter(req => req.id !== userId));
       setFriends(prev => [...prev, response.data]);
     } catch (error) {
       console.error('Failed to accept friend request:', error);
-      throw new Error('Failed to accept friend request');
+      throw new Error(error.response?.data?.message || 'Failed to accept friend request');
     }
   };
 
@@ -271,15 +272,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`http://localhost:5000/api/friends/reject/${userId}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
+      await axiosInstance.post(`/api/friends/reject/${userId}`, {}, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
-      
-      // Update local state
       setFriendRequests(prev => prev.filter(req => req.id !== userId));
     } catch (error) {
       console.error('Failed to reject friend request:', error);
-      throw new Error('Failed to reject friend request');
+      throw new Error(error.response?.data?.message || 'Failed to reject friend request');
     }
   };
 
@@ -288,20 +290,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/friends/${userId}`, {
+      await axiosInstance.delete(`/api/friends/${userId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      // Update local state
       setFriends(prev => prev.filter(friend => friend.id !== userId));
-      
-      // If the removed friend was the current chat, clear it
       if (currentChat && currentChat.id === userId) {
         setCurrentChat(null);
       }
     } catch (error) {
       console.error('Failed to remove friend:', error);
-      throw new Error('Failed to remove friend');
+      throw new Error(error.response?.data?.message || 'Failed to remove friend');
     }
   };
 
@@ -310,7 +308,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/users/search?q=${query}`, {
+      const response = await axiosInstance.get(`/api/users/search?q=${encodeURIComponent(query)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       return response.data;

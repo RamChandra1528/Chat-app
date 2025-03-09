@@ -24,6 +24,8 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.yourdomain.com';
+
 export const useNotifications = () => {
   const context = useContext(NotificationContext);
   if (!context) {
@@ -39,6 +41,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const axiosInstance = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 10000,
+    withCredentials: true,
+  });
+
   useEffect(() => {
     if (user) {
       loadNotifications();
@@ -51,8 +59,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/notifications', {
-        headers: { Authorization: `Bearer ${token}` }
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      const response = await axiosInstance.get('/api/notifications', {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       setNotifications(response.data);
     } catch (error) {
@@ -67,11 +82,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/notifications/${notificationId}/read`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      await axiosInstance.put(`/api/notifications/${notificationId}/read`, {}, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       
-      // Update local state
       setNotifications(prev => 
         prev.map(notification => 
           notification.id === notificationId 
@@ -81,6 +102,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       );
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
+      throw new Error(error.response?.data?.message || 'Failed to mark notification as read');
     }
   };
 
@@ -89,16 +111,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       const token = localStorage.getItem('token');
-      await axios.put('http://localhost:5000/api/notifications/read-all', {}, {
-        headers: { Authorization: `Bearer ${token}` }
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      await axiosInstance.put('/api/notifications/read-all', {}, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       
-      // Update local state
       setNotifications(prev => 
         prev.map(notification => ({ ...notification, read: true }))
       );
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
+      throw new Error(error.response?.data?.message || 'Failed to mark all notifications as read');
     }
   };
 
@@ -107,16 +136,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/notifications/${notificationId}`, {
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      await axiosInstance.delete(`/api/notifications/${notificationId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Update local state
       setNotifications(prev => 
         prev.filter(notification => notification.id !== notificationId)
       );
     } catch (error) {
       console.error('Failed to delete notification:', error);
+      throw new Error(error.response?.data?.message || 'Failed to delete notification');
     }
   };
 
@@ -125,14 +158,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       const token = localStorage.getItem('token');
-      await axios.delete('http://localhost:5000/api/notifications/clear-all', {
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      await axiosInstance.delete('/api/notifications/clear-all', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Update local state
       setNotifications([]);
     } catch (error) {
       console.error('Failed to clear all notifications:', error);
+      throw new Error(error.response?.data?.message || 'Failed to clear all notifications');
     }
   };
 
